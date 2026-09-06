@@ -1,17 +1,33 @@
-import { Link, useNavigate } from "react-router-dom";
-import { Bug } from "lucide-react";
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  Bug,
+} from "lucide-react";
 
 function Navbar() {
+  const navigate =
+    useNavigate();
 
-  const navigate = useNavigate();
-
-  const user = JSON.parse(
-    localStorage.getItem("user")
-  );
+  const user =
+    JSON.parse(
+      localStorage.getItem(
+        "user"
+      )
+    );
 
   const handleLogout = () => {
+    // Remove user details
+    localStorage.removeItem(
+      "user"
+    );
 
-    localStorage.removeItem("user");
+    // Remove JWT token
+    localStorage.removeItem(
+      "token"
+    );
 
     navigate("/");
 
@@ -41,14 +57,19 @@ function Navbar() {
         </Link>
 
         {user && (
-          <Link to="/post-bug">
-            Post Bug
-          </Link>
+          <>
+            <Link to="/post-bug">
+              Post Bug
+            </Link>
+
+            <Link to="/live-room">
+              Live Debug
+            </Link>
+          </>
         )}
 
         {!user ? (
           <>
-
             <Link to="/login">
               Login
             </Link>
@@ -59,21 +80,20 @@ function Navbar() {
             >
               Register
             </Link>
-
           </>
         ) : (
           <>
-
             <span>
               Hello, {user.name}
             </span>
 
             <button
-              onClick={handleLogout}
+              onClick={
+                handleLogout
+              }
             >
               Logout
             </button>
-
           </>
         )}
 

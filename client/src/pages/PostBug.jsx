@@ -1,133 +1,388 @@
-import { useState } from "react";
+import {
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+  Link,
+} from "react-router-dom";
 
 function PostBug() {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [language, setLanguage] = useState("");
-  const [code, setCode] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [expectedOutput, setExpectedOutput] = useState("");
-  const [message, setMessage] = useState("");
+  const navigate =
+    useNavigate();
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(
+    localStorage.getItem("user")
+  );
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const token =
+    localStorage.getItem("token");
 
-    if (!user) {
-      setMessage("Please login to post a bug");
-      return;
-    }
+  const [title, setTitle] =
+    useState("");
 
-    try {
-      const response = await fetch("http://localhost:5000/api/bugs", {
-        method: "POST",
+  const [
+    description,
+    setDescription,
+  ] = useState("");
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+  const [
+    language,
+    setLanguage,
+  ] = useState("Java");
 
-        body: JSON.stringify({
-          user_id: user.id,
-          title,
-          description,
-          language,
-          code,
-          error_message: errorMessage,
-          expected_output: expectedOutput,
-        }),
-      });
+  const [code, setCode] =
+    useState("");
 
-      const data = await response.json();
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
-      setMessage(data.message);
+  const [
+    expectedOutput,
+    setExpectedOutput,
+  ] = useState("");
 
-      if (response.ok) {
-        setTitle("");
-        setDescription("");
-        setLanguage("");
-        setCode("");
-        setErrorMessage("");
-        setExpectedOutput("");
+  const [
+    message,
+    setMessage,
+  ] = useState("");
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  // =========================
+  // POST BUG
+  // =========================
+
+  const handleSubmit =
+    async (e) => {
+      e.preventDefault();
+
+      setMessage("");
+
+      if (
+        !user ||
+        !token
+      ) {
+        setMessage(
+          "Please login to post a bug."
+        );
+
+        return;
       }
-    } catch (error) {
-      console.log(error);
-      setMessage("Something went wrong");
-    }
-  };
+
+      if (
+        !title.trim() ||
+        !description.trim()
+      ) {
+        setMessage(
+          "Title and description are required."
+        );
+
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const response =
+          await fetch(
+            "http://localhost:5000/api/bugs",
+            {
+              method:
+                "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body:
+                JSON.stringify({
+                  title:
+                    title.trim(),
+
+                  description:
+                    description.trim(),
+
+                  language,
+
+                  code,
+
+                  error_message:
+                    errorMessage,
+
+                  expected_output:
+                    expectedOutput,
+                }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        // JWT invalid / expired
+        if (
+          response.status ===
+          401
+        ) {
+          localStorage.removeItem(
+            "token"
+          );
+
+          setMessage(
+            "Your session expired. Please login again."
+          );
+
+          return;
+        }
+
+        if (
+          response.ok
+        ) {
+          setMessage(
+            "Bug posted successfully!"
+          );
+
+          // Open newly created bug
+          if (data.bugId) {
+            navigate(
+              `/bugs/${data.bugId}`
+            );
+          } else {
+            navigate(
+              "/community"
+            );
+          }
+        } else {
+          setMessage(
+            data.message ||
+              "Unable to post bug."
+          );
+        }
+      } catch (error) {
+        console.log(error);
+
+        setMessage(
+          "Unable to connect to server."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  // =========================
+  // LOGGED OUT UI
+  // =========================
+
+  if (
+    !user ||
+    !token
+  ) {
+    return (
+      <div className="page-container">
+
+        <div className="general-form">
+
+          <h2>
+            Post a Bug
+          </h2>
+
+          <p className="message">
+            Please login to post a bug.
+          </p>
+
+          <button
+            className="primary-btn"
+            onClick={() =>
+              navigate(
+                "/login"
+              )
+            }
+          >
+            Go to Login
+          </button>
+
+          <Link
+            to="/community"
+            className="back-link"
+          >
+            ← Back to Community
+          </Link>
+
+        </div>
+
+      </div>
+    );
+  }
+
+  // =========================
+  // UI
+  // =========================
 
   return (
     <div className="page-container">
 
+      <Link
+        to="/community"
+        className="back-link"
+      >
+        ← Back to Community
+      </Link>
+
       <div className="general-form">
 
-        <h2>Post a Bug</h2>
+        <h2>
+          Post a Programming Bug
+        </h2>
 
         <p className="form-subtitle">
-          Share your issue clearly so the community can help you debug it.
+          Describe the issue clearly so other developers can help you debug it.
         </p>
 
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={
+            handleSubmit
+          }
+        >
 
-          <label>Bug Title</label>
+          <label>
+            Bug Title
+          </label>
 
           <input
             type="text"
-            placeholder="Example: ArrayIndexOutOfBoundsException in Java"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Example: Array index error in Java"
+            value={
+              title
+            }
+            onChange={(e) =>
+              setTitle(
+                e.target.value
+              )
+            }
             required
           />
 
-          <label>Description</label>
+          <label>
+            Description
+          </label>
 
           <textarea
-            placeholder="Explain what your code is supposed to do..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Explain what your program is supposed to do and what is going wrong..."
+            value={
+              description
+            }
+            onChange={(e) =>
+              setDescription(
+                e.target.value
+              )
+            }
             required
           />
 
-          <label>Programming Language</label>
+          <label>
+            Programming Language
+          </label>
 
-          <input
-            type="text"
-            placeholder="Example: Java"
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            required
-          />
+          <select
+            value={
+              language
+            }
+            onChange={(e) =>
+              setLanguage(
+                e.target.value
+              )
+            }
+          >
 
-          <label>Your Code</label>
+            <option value="Java">
+              Java
+            </option>
+
+            <option value="Python">
+              Python
+            </option>
+
+            <option value="JavaScript">
+              JavaScript
+            </option>
+
+            <option value="C++">
+              C++
+            </option>
+
+            <option value="C">
+              C
+            </option>
+
+          </select>
+
+          <label>
+            Buggy Code
+          </label>
 
           <textarea
             placeholder="Paste your code here..."
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            required
+            value={
+              code
+            }
+            onChange={(e) =>
+              setCode(
+                e.target.value
+              )
+            }
           />
 
-          <label>Error Message</label>
+          <label>
+            Error Message
+          </label>
 
           <textarea
-            placeholder="Paste the error message here..."
-            value={errorMessage}
-            onChange={(e) => setErrorMessage(e.target.value)}
+            placeholder="Paste the error message here, if any..."
+            value={
+              errorMessage
+            }
+            onChange={(e) =>
+              setErrorMessage(
+                e.target.value
+              )
+            }
           />
 
-          <label>Expected Output</label>
+          <label>
+            Expected Output
+          </label>
 
           <textarea
-            placeholder="What output were you expecting?"
-            value={expectedOutput}
-            onChange={(e) => setExpectedOutput(e.target.value)}
+            placeholder="What output did you expect?"
+            value={
+              expectedOutput
+            }
+            onChange={(e) =>
+              setExpectedOutput(
+                e.target.value
+              )
+            }
           />
 
           <button
             type="submit"
             className="primary-btn"
+            disabled={
+              loading
+            }
           >
-            Post Bug
+            {loading
+              ? "Posting..."
+              : "Post Bug"}
           </button>
 
         </form>

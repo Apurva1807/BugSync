@@ -1,22 +1,21 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function Login() {
-
-  const [email, setEmail] = useState("");
-
-  const [password, setPassword] = useState("");
-
-  const [message, setMessage] = useState("");
-
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  const handleLogin = async (e) => {
     e.preventDefault();
 
-    try {
+    setMessage("");
+    setLoading(true);
 
+    try {
       const response = await fetch(
         "http://localhost:5000/api/auth/login",
         {
@@ -35,46 +34,56 @@ function Login() {
 
       const data = await response.json();
 
-      setMessage(data.message);
-
-      if (response.ok) {
-
-        localStorage.setItem(
-          "user",
-          JSON.stringify(data.user)
+      if (!response.ok) {
+        setMessage(
+          data.message || "Login failed"
         );
 
-        navigate("/");
-
-        window.location.reload();
+        return;
       }
 
-    } catch (error) {
+      // Save user details
+      localStorage.setItem(
+        "user",
+        JSON.stringify(data.user)
+      );
 
+      // Save JWT token
+      localStorage.setItem(
+        "token",
+        data.token
+      );
+
+      setMessage("Login successful!");
+
+      navigate("/community");
+
+      window.location.reload();
+    } catch (error) {
       console.log(error);
 
-      setMessage("Something went wrong");
+      setMessage(
+        "Unable to connect to server."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="auth-page">
+    <div className="page-container">
 
-      <div className="form-container">
+      <div className="general-form">
 
-        <h2>
-          Welcome Back
-        </h2>
+        <h2>Login</h2>
 
         <p className="form-subtitle">
-          Login to continue solving bugs with the developer community.
+          Login to continue using BugSync.
         </p>
 
         <form onSubmit={handleLogin}>
 
-          <label>
-            Email Address
-          </label>
+          <label>Email</label>
 
           <input
             type="email"
@@ -86,9 +95,7 @@ function Login() {
             required
           />
 
-          <label>
-            Password
-          </label>
+          <label>Password</label>
 
           <input
             type="password"
@@ -103,8 +110,11 @@ function Login() {
           <button
             type="submit"
             className="primary-btn"
+            disabled={loading}
           >
-            Login
+            {loading
+              ? "Logging in..."
+              : "Login"}
           </button>
 
         </form>
@@ -115,14 +125,11 @@ function Login() {
           </p>
         )}
 
-        <p className="auth-footer">
-
+        <p className="form-footer">
           Don't have an account?{" "}
-
           <Link to="/register">
-            Create Account
+            Register
           </Link>
-
         </p>
 
       </div>

@@ -1,198 +1,302 @@
 const express = require("express");
-const router = express.Router();
 const db = require("../config/db");
 
-// Add solution
-router.post("/", (req, res) => {
-    const { bug_id, user_id, solution_text, code } = req.body;
+const verifyToken = require(
+  "../middleware/authMiddleware"
+);
+
+const router = express.Router();
+
+// =========================
+// ADD SOLUTION
+// =========================
+
+router.post(
+  "/",
+  verifyToken,
+  (req, res) => {
+    const {
+      bug_id,
+      solution_text,
+      code,
+    } = req.body;
+
+    const user_id = req.user.id;
+
+    if (
+      !bug_id ||
+      !solution_text
+    ) {
+      return res.status(400).json({
+        message:
+          "Bug ID and solution explanation are required",
+      });
+    }
+
+    // First check whether bug exists
+    // and whether it is still OPEN
+    db.query(
+      `
+      SELECT id, status
+      FROM bugs
+      WHERE id = ?
+      `,
+      [bug_id],
+      (bugErr, bugResults) => {
+        if (bugErr) {
+          console.log(bugErr);
+
+          return res.status(500).json({
+            message:
+              "Unable to verify bug",
+          });
+        }
+
+        if (
+          bugResults.length === 0
+        ) {
+          return res.status(404).json({
+            message:
+              "Bug not found",
+          });
+        }
+
+        if (
+          bugResults[0].status ===
+          "SOLVED"
+        ) {
+          return res.status(400).json({
+            message:
+              "This bug is already solved. New solutions are not allowed.",
+          });
+        }
+
+        const sql = `
+          INSERT INTO solutions
+          (
+            bug_id,
+            user_id,
+            solution_text,
+            code
+          )
+          VALUES (?, ?, ?, ?)
+        `;
+
+        db.query(
+          sql,
+          [
+            bug_id,
+            user_id,
+            solution_text,
+            code || "",
+          ],
+          (err) => {
+            if (err) {
+              console.log(err);
+
+              return res.status(500).json({
+                message:
+                  "Unable to add solution",
+              });
+            }
+
+            return res.status(201).json({
+              message:
+                "Solution submitted successfully",
+            });
+          }
+        );
+      }
+    );
+  }
+);
+
+// =========================
+// GET SOLUTIONS
+// =========================
+
+router.get(
+  "/:bugId",
+  (req, res) => {
+    const { bugId } =
+      req.params;
 
     const sql = `
-        INSERT INTO solutions
-        (bug_id, user_id, solution_text, code)
-        VALUES (?, ?, ?, ?)
+      SELECT
+        solutions.*,
+        users.name
+      FROM solutions
+      JOIN users
+        ON solutions.user_id = users.id
+      WHERE solutions.bug_id = ?
+      ORDER BY
+        solutions.is_accepted DESC,
+        solutions.created_at DESC
     `;
 
     db.query(
-        sql,
-        [bug_id, user_id, solution_text, code],
-        (err, result) => {
-            if (err) {
-                console.log(err);
-                return res.status(500).json({
-                    message: "Failed to add solution"
-                });
-            }
+      sql,
+      [bugId],
+      (err, results) => {
+        if (err) {
+          console.log(err);
 
-            res.json({
-                message: "Solution added successfully"
-            });
+          return res.status(500).json({
+            message:
+              "Unable to fetch solutions",
+          });
         }
+
+        return res.json(
+          results
+        );
+      }
     );
-});
+  }
+);
 
-// Get solutions for one bug
-router.get("/:bugId", (req, res) => {
-    const bugId = req.params.bugId;
+// =========================
+// ACCEPT SOLUTION
+// =========================
 
-    const sql = `
-        SELECT solutions.*, users.name
-        FROM solutions
-        JOIN users ON solutions.user_id = users.id
-        WHERE solutions.bug_id = ?
-        ORDER BY solutions.created_at DESC
+router.put(
+  "/:solutionId/accept",
+  verifyToken,
+  (req, res) => {
+    const {
+      solutionId,
+    } = req.params;
+
+    const findSql = `
+      SELECT
+        solutions.id AS solution_id,
+        solutions.bug_id,
+        bugs.user_id AS bug_owner_id,
+        bugs.status
+      FROM solutions
+      JOIN bugs
+        ON solutions.bug_id = bugs.id
+      WHERE solutions.id = ?
     `;
 
-    db.query(sql, [bugId], (err, results) => {
-        if (err) {
-            console.log(err);
-            return res.status(500).json({
-                message: "Failed to fetch solutions"
-            });
+    db.query(
+      findSql,
+      [solutionId],
+      (findErr, results) => {
+        if (findErr) {
+          console.log(findErr);
+
+          return res.status(500).json({
+            message:
+              "Database error",
+          });
         }
 
-        res.json(results);
-    });
-});
-router.put("/:solutionId/accept", (req, res) => {
-
-    const solutionId = req.params.solutionId;
-
-    const findSql =
-        "SELECT bug_id FROM solutions WHERE id = ?";
-
-    db.query(findSql, [solutionId], (err, results) => {
-
-        if (err) {
-            console.log(err);
-
-            return res.status(500).json({
-                message: "Failed to accept solution"
-            });
+        if (
+          results.length === 0
+        ) {
+          return res.status(404).json({
+            message:
+              "Solution not found",
+          });
         }
 
-        if (results.length === 0) {
-            return res.status(404).json({
-                message: "Solution not found"
-            });
+        const solution =
+          results[0];
+
+        // Only bug owner can accept
+        if (
+          solution.bug_owner_id !==
+          req.user.id
+        ) {
+          return res.status(403).json({
+            message:
+              "Only the bug owner can accept a solution",
+          });
         }
 
-        const bugId = results[0].bug_id;
+        // If already solved, don't accept another
+        if (
+          solution.status ===
+          "SOLVED"
+        ) {
+          return res.status(400).json({
+            message:
+              "This bug is already solved",
+          });
+        }
 
-        const acceptSql =
-            "UPDATE solutions SET is_accepted = TRUE WHERE id = ?";
-
+        // Reset all accepted solutions
         db.query(
-            acceptSql,
-            [solutionId],
-            (err) => {
+          `
+          UPDATE solutions
+          SET is_accepted = FALSE
+          WHERE bug_id = ?
+          `,
+          [solution.bug_id],
+          (resetErr) => {
+            if (resetErr) {
+              console.log(resetErr);
 
-                if (err) {
-                    console.log(err);
+              return res.status(500).json({
+                message:
+                  "Unable to update solutions",
+              });
+            }
 
-                    return res.status(500).json({
-                        message: "Failed to accept solution"
-                    });
+            // Accept selected solution
+            db.query(
+              `
+              UPDATE solutions
+              SET is_accepted = TRUE
+              WHERE id = ?
+              `,
+              [solutionId],
+              (acceptErr) => {
+                if (acceptErr) {
+                  console.log(
+                    acceptErr
+                  );
+
+                  return res.status(500).json({
+                    message:
+                      "Unable to accept solution",
+                  });
                 }
 
-                const bugSql =
-                    "UPDATE bugs SET status = 'SOLVED' WHERE id = ?";
-
+                // Mark bug as solved
                 db.query(
-                    bugSql,
-                    [bugId],
-                    (err) => {
+                  `
+                  UPDATE bugs
+                  SET status = 'SOLVED'
+                  WHERE id = ?
+                  `,
+                  [solution.bug_id],
+                  (bugErr) => {
+                    if (bugErr) {
+                      console.log(
+                        bugErr
+                      );
 
-                        if (err) {
-                            console.log(err);
-
-                            return res.status(500).json({
-                                message: "Failed to update bug"
-                            });
-                        }
-
-                        res.json({
-                            message: "Solution accepted successfully"
-                        });
+                      return res.status(500).json({
+                        message:
+                          "Solution accepted but bug status update failed",
+                      });
                     }
+
+                    return res.json({
+                      message:
+                        "Solution accepted and bug marked as SOLVED",
+                    });
+                  }
                 );
-            }
+              }
+            );
+          }
         );
-    });
-});
-router.put("/:solutionId/accept", (req, res) => {
+      }
+    );
+  }
+);
 
-    const solutionId = req.params.solutionId;
-
-    // Step 1: Find which bug this solution belongs to
-    const findSql =
-        "SELECT bug_id FROM solutions WHERE id = ?";
-
-    db.query(findSql, [solutionId], (err, results) => {
-
-        if (err) {
-            console.log(err);
-
-            return res.status(500).json({
-                message: "Failed to accept solution"
-            });
-        }
-
-        if (results.length === 0) {
-            return res.status(404).json({
-                message: "Solution not found"
-            });
-        }
-
-        const bugId = results[0].bug_id;
-
-        // Step 2: Remove previous accepted solution
-        const resetSql =
-            "UPDATE solutions SET is_accepted = FALSE WHERE bug_id = ?";
-
-        db.query(resetSql, [bugId], (err) => {
-
-            if (err) {
-                console.log(err);
-
-                return res.status(500).json({
-                    message: "Failed to update solutions"
-                });
-            }
-
-            // Step 3: Accept selected solution
-            const acceptSql =
-                "UPDATE solutions SET is_accepted = TRUE WHERE id = ?";
-
-            db.query(acceptSql, [solutionId], (err) => {
-
-                if (err) {
-                    console.log(err);
-
-                    return res.status(500).json({
-                        message: "Failed to accept solution"
-                    });
-                }
-
-                // Step 4: Change bug status to SOLVED
-                const bugSql =
-                    "UPDATE bugs SET status = 'SOLVED' WHERE id = ?";
-
-                db.query(bugSql, [bugId], (err) => {
-
-                    if (err) {
-                        console.log(err);
-
-                        return res.status(500).json({
-                            message: "Failed to update bug status"
-                        });
-                    }
-
-                    res.json({
-                        message: "Solution accepted successfully"
-                    });
-                });
-            });
-        });
-    });
-});
 module.exports = router;

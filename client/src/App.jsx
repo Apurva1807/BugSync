@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-
+import LiveRoom from "./pages/LiveRoom";
 import Home from "./pages/Home.jsx";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
@@ -47,6 +47,14 @@ function App() {
           path="/bugs/:id"
           element={<BugDetails />}
         />
+        <Route
+  path="/live-room"
+  element={<LiveRoom />}
+/>
+<Route
+  path="/live-room/:bugId/:roomId"
+  element={<LiveRoom />}
+/>
 
       </Routes>
 
