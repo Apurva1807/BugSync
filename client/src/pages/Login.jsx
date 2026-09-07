@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { API_URL } from "../config";
 
 function Login() {
   const navigate = useNavigate();
@@ -13,11 +14,17 @@ function Login() {
     e.preventDefault();
 
     setMessage("");
-    setLoading(true);
+
+    if (!email.trim() || !password) {
+      setMessage("Email and password are required.");
+      return;
+    }
 
     try {
+      setLoading(true);
+
       const response = await fetch(
-        "http://localhost:5000/api/auth/login",
+        `${API_URL}/api/auth/login`,
         {
           method: "POST",
 
@@ -26,7 +33,7 @@ function Login() {
           },
 
           body: JSON.stringify({
-            email,
+            email: email.trim(),
             password,
           }),
         }
@@ -34,31 +41,26 @@ function Login() {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        setMessage(
-          data.message || "Login failed"
+      if (response.ok) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify(data.user)
         );
 
-        return;
+        localStorage.setItem(
+          "token",
+          data.token
+        );
+
+        navigate("/community");
+
+        window.location.reload();
+      } else {
+        setMessage(
+          data.message ||
+            "Login failed."
+        );
       }
-
-      // Save user details
-      localStorage.setItem(
-        "user",
-        JSON.stringify(data.user)
-      );
-
-      // Save JWT token
-      localStorage.setItem(
-        "token",
-        data.token
-      );
-
-      setMessage("Login successful!");
-
-      navigate("/community");
-
-      window.location.reload();
     } catch (error) {
       console.log(error);
 
@@ -78,7 +80,7 @@ function Login() {
         <h2>Login</h2>
 
         <p className="form-subtitle">
-          Login to continue using BugSync.
+          Login to continue debugging with BugSync.
         </p>
 
         <form onSubmit={handleLogin}>
@@ -125,7 +127,7 @@ function Login() {
           </p>
         )}
 
-        <p className="form-footer">
+        <p className="auth-switch-text">
           Don't have an account?{" "}
           <Link to="/register">
             Register

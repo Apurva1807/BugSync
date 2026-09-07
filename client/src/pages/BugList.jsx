@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-
+import { API_URL } from "../config";
 function BugList() {
   const [bugs, setBugs] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/bugs")
+   fetch(`${API_URL}/api/bugs`)
       .then((response) => response.json())
       .then((data) => {
         setBugs(data);

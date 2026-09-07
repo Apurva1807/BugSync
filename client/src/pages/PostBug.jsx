@@ -1,11 +1,10 @@
-import {
-  useState,
-} from "react";
-
+import { useState } from "react";
 import {
   useNavigate,
   Link,
 } from "react-router-dom";
+
+import { API_URL } from "../config";
 
 function PostBug() {
   const navigate =
@@ -54,10 +53,6 @@ function PostBug() {
     setLoading,
   ] = useState(false);
 
-  // =========================
-  // POST BUG
-  // =========================
-
   const handleSubmit =
     async (e) => {
       e.preventDefault();
@@ -91,7 +86,7 @@ function PostBug() {
 
         const response =
           await fetch(
-            "http://localhost:5000/api/bugs",
+            `${API_URL}/api/bugs`,
             {
               method:
                 "POST",
@@ -128,13 +123,16 @@ function PostBug() {
         const data =
           await response.json();
 
-        // JWT invalid / expired
         if (
           response.status ===
           401
         ) {
           localStorage.removeItem(
             "token"
+          );
+
+          localStorage.removeItem(
+            "user"
           );
 
           setMessage(
@@ -144,14 +142,7 @@ function PostBug() {
           return;
         }
 
-        if (
-          response.ok
-        ) {
-          setMessage(
-            "Bug posted successfully!"
-          );
-
-          // Open newly created bug
+        if (response.ok) {
           if (data.bugId) {
             navigate(
               `/bugs/${data.bugId}`
@@ -178,10 +169,6 @@ function PostBug() {
       }
     };
 
-  // =========================
-  // LOGGED OUT UI
-  // =========================
-
   if (
     !user ||
     !token
@@ -202,9 +189,7 @@ function PostBug() {
           <button
             className="primary-btn"
             onClick={() =>
-              navigate(
-                "/login"
-              )
+              navigate("/login")
             }
           >
             Go to Login
@@ -222,10 +207,6 @@ function PostBug() {
       </div>
     );
   }
-
-  // =========================
-  // UI
-  // =========================
 
   return (
     <div className="page-container">
@@ -260,9 +241,7 @@ function PostBug() {
           <input
             type="text"
             placeholder="Example: Array index error in Java"
-            value={
-              title
-            }
+            value={title}
             onChange={(e) =>
               setTitle(
                 e.target.value
@@ -276,7 +255,7 @@ function PostBug() {
           </label>
 
           <textarea
-            placeholder="Explain what your program is supposed to do and what is going wrong..."
+            placeholder="Explain what your program should do and what is going wrong..."
             value={
               description
             }
@@ -293,9 +272,7 @@ function PostBug() {
           </label>
 
           <select
-            value={
-              language
-            }
+            value={language}
             onChange={(e) =>
               setLanguage(
                 e.target.value
@@ -331,9 +308,7 @@ function PostBug() {
 
           <textarea
             placeholder="Paste your code here..."
-            value={
-              code
-            }
+            value={code}
             onChange={(e) =>
               setCode(
                 e.target.value
@@ -376,9 +351,7 @@ function PostBug() {
           <button
             type="submit"
             className="primary-btn"
-            disabled={
-              loading
-            }
+            disabled={loading}
           >
             {loading
               ? "Posting..."

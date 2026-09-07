@@ -9,6 +9,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 
+import { API_URL } from "../config";
+
 function BugDetails() {
   const { id } = useParams();
 
@@ -61,7 +63,7 @@ function BugDetails() {
       try {
         const response =
           await fetch(
-            `http://localhost:5000/api/bugs/${id}`
+            `${API_URL}/api/bugs/${id}`
           );
 
         const data =
@@ -95,7 +97,7 @@ function BugDetails() {
       try {
         const response =
           await fetch(
-            `http://localhost:5000/api/solutions/${id}`
+            `${API_URL}/api/solutions/${id}`
           );
 
         const data =
@@ -183,7 +185,7 @@ function BugDetails() {
       try {
         const response =
           await fetch(
-            "http://localhost:5000/api/solutions",
+            `${API_URL}/api/solutions`,
             {
               method:
                 "POST",
@@ -234,6 +236,10 @@ function BugDetails() {
             "token"
           );
 
+          localStorage.removeItem(
+            "user"
+          );
+
           setMessage(
             "Session expired. Please login again."
           );
@@ -264,7 +270,7 @@ function BugDetails() {
       try {
         const response =
           await fetch(
-            `http://localhost:5000/api/solutions/${solutionId}/accept`,
+            `${API_URL}/api/solutions/${solutionId}/accept`,
             {
               method:
                 "PUT",
@@ -296,6 +302,10 @@ function BugDetails() {
         ) {
           localStorage.removeItem(
             "token"
+          );
+
+          localStorage.removeItem(
+            "user"
           );
 
           alert(

@@ -1,107 +1,50 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import {
-  Link,
-  useNavigate,
-  useParams,
-} from "react-router-dom";
-
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import Editor from "@monaco-editor/react";
 
-const socket = io("http://localhost:5000");
+import { API_URL } from "../config";
+
+const socket = io(API_URL);
 
 function LiveRoom() {
-  const {
-    bugId,
-    roomId: urlRoomId,
-  } = useParams();
-
+  const { bugId, roomId: urlRoomId } = useParams();
   const navigate = useNavigate();
 
-  const user = JSON.parse(
-    localStorage.getItem("user")
-  );
+  const user = JSON.parse(localStorage.getItem("user"));
+  const token = localStorage.getItem("token");
 
-  const token =
-    localStorage.getItem("token");
+  const [roomId, setRoomId] = useState(urlRoomId || "");
+  const [joinedRoom, setJoinedRoom] = useState(urlRoomId || "");
 
-  const [roomId, setRoomId] =
-    useState(urlRoomId || "");
+  const [bug, setBug] = useState(null);
+  const [message, setMessage] = useState("");
+  const [pageError, setPageError] = useState("");
+  const [loadingBug, setLoadingBug] = useState(Boolean(bugId));
 
-  const [joinedRoom, setJoinedRoom] =
-    useState(urlRoomId || "");
+  const [language, setLanguage] = useState("java");
+  const [code, setCode] = useState("");
 
-  const [bug, setBug] =
-    useState(null);
+  const [connectedUsers, setConnectedUsers] = useState([]);
 
-  const [message, setMessage] =
+  const [chatMessage, setChatMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+
+  const [customInput, setCustomInput] = useState("");
+  const [executionResult, setExecutionResult] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const [solutionExplanation, setSolutionExplanation] =
     useState("");
 
-  const [pageError, setPageError] =
-    useState("");
+  const [isSavingSolution, setIsSavingSolution] =
+    useState(false);
 
-  const [loadingBug, setLoadingBug] =
-    useState(Boolean(bugId));
+  const [solutionSaved, setSolutionSaved] =
+    useState(false);
 
-  const [language, setLanguage] =
-    useState("java");
-
-  const [code, setCode] =
-    useState("");
-
-  const [
-    connectedUsers,
-    setConnectedUsers,
-  ] = useState([]);
-
-  const [
-    chatMessage,
-    setChatMessage,
-  ] = useState("");
-
-  const [messages, setMessages] =
-    useState([]);
-
-  const [
-    customInput,
-    setCustomInput,
-  ] = useState("");
-
-  const [
-    executionResult,
-    setExecutionResult,
-  ] = useState(null);
-
-  const [
-    isRunning,
-    setIsRunning,
-  ] = useState(false);
-
-  const [
-    solutionExplanation,
-    setSolutionExplanation,
-  ] = useState("");
-
-  const [
-    isSavingSolution,
-    setIsSavingSolution,
-  ] = useState(false);
-
-  const [
-    solutionSaved,
-    setSolutionSaved,
-  ] = useState(false);
-
-  const chatBottomRef =
-    useRef(null);
-
-  const roomStateReceivedRef =
-    useRef(false);
+  const chatBottomRef = useRef(null);
+  const roomStateReceivedRef = useRef(false);
 
   // =========================
   // LOGIN PROTECTION
@@ -135,7 +78,7 @@ function LiveRoom() {
           "join-room",
           {
             roomId: urlRoomId,
-            user: user,
+            user,
           }
         );
 
@@ -265,7 +208,7 @@ function LiveRoom() {
         "join-room",
         {
           roomId: urlRoomId,
-          user: user,
+          user,
         }
       );
 
@@ -321,7 +264,11 @@ function LiveRoom() {
   // =========================
 
   useEffect(() => {
-    if (bugId && user && token) {
+    if (
+      bugId &&
+      user &&
+      token
+    ) {
       fetchBugDetails();
     }
   }, [bugId]);
@@ -334,10 +281,13 @@ function LiveRoom() {
 
         const response =
           await fetch(
-            `http://localhost:5000/api/bugs/${bugId}`
+            `${API_URL}/api/bugs/${bugId}`
           );
 
-        if (response.status === 404) {
+        if (
+          response.status ===
+          404
+        ) {
           setBug(null);
 
           setPageError(
@@ -376,7 +326,9 @@ function LiveRoom() {
           !roomStateReceivedRef.current
         ) {
           if (data.code) {
-            setCode(data.code);
+            setCode(
+              data.code
+            );
           }
 
           setLanguage(
@@ -726,7 +678,7 @@ int main() {
       try {
         const response =
           await fetch(
-            "http://localhost:5000/api/run",
+            `${API_URL}/api/run`,
             {
               method:
                 "POST",
@@ -750,8 +702,7 @@ int main() {
         const data =
           await response.json();
 
-        let output =
-          "";
+        let output = "";
 
         if (
           data.compile_output
@@ -776,15 +727,19 @@ int main() {
 
         const result = {
           output,
+
           status:
             data.status ||
             "Finished",
+
           time:
             data.time ||
             null,
+
           memory:
             data.memory ||
             null,
+
           runBy:
             user?.name ||
             "Developer",
@@ -800,8 +755,11 @@ int main() {
             {
               roomId:
                 joinedRoom,
+
               result,
+
               code,
+
               language,
             }
           );
@@ -812,8 +770,10 @@ int main() {
         setExecutionResult({
           output:
             "Unable to execute code.",
+
           status:
             "Error",
+
           runBy:
             user?.name ||
             "Developer",
@@ -870,7 +830,7 @@ int main() {
 
         const response =
           await fetch(
-            "http://localhost:5000/api/solutions",
+            `${API_URL}/api/solutions`,
             {
               method:
                 "POST",
@@ -887,8 +847,10 @@ int main() {
                 JSON.stringify({
                   bug_id:
                     bugId,
+
                   solution_text:
                     solutionExplanation,
+
                   code,
                 }),
             }
@@ -898,10 +860,15 @@ int main() {
           await response.json();
 
         if (
-          response.status === 401
+          response.status ===
+          401
         ) {
           localStorage.removeItem(
             "token"
+          );
+
+          localStorage.removeItem(
+            "user"
           );
 
           setPageError(
@@ -941,6 +908,10 @@ int main() {
         );
       }
     };
+
+  // =========================
+  // FILE NAME
+  // =========================
 
   const getFileName = () => {
     if (
@@ -998,7 +969,9 @@ int main() {
           <button
             className="primary-btn"
             onClick={() =>
-              navigate("/login")
+              navigate(
+                "/login"
+              )
             }
           >
             Go to Login
@@ -1067,10 +1040,6 @@ int main() {
       </p>
     );
   }
-
-  // =========================
-  // UI
-  // =========================
 
   return (
     <div className="page-container">
@@ -1278,16 +1247,21 @@ int main() {
                     options={{
                       fontSize:
                         15,
+
                       minimap: {
                         enabled:
                           false,
                       },
+
                       automaticLayout:
                         true,
+
                       wordWrap:
                         "on",
+
                       scrollBeyondLastLine:
                         false,
+
                       tabSize:
                         4,
                     }}
@@ -1302,6 +1276,7 @@ int main() {
                 <div className="section-header-row">
 
                   <div>
+
                     <h3>
                       Run & Test
                     </h3>
@@ -1309,6 +1284,7 @@ int main() {
                     <p>
                       Execute the current code and verify the fix.
                     </p>
+
                   </div>
 
                   <button
@@ -1379,6 +1355,7 @@ int main() {
                   <div className="section-header-row">
 
                     <div>
+
                       <h3>
                         Final Fix
                       </h3>
@@ -1386,6 +1363,7 @@ int main() {
                       <p>
                         Save the working code as a community solution.
                       </p>
+
                     </div>
 
                     {solutionSaved && (
@@ -1488,6 +1466,7 @@ int main() {
                         </span>
 
                         <div>
+
                           <strong>
                             {
                               connectedUser.name
@@ -1497,6 +1476,7 @@ int main() {
                           <span>
                             ● Online
                           </span>
+
                         </div>
 
                       </div>
