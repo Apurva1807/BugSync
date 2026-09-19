@@ -15,7 +15,7 @@ const app = express();
 // MIDDLEWARE
 // =========================
 
-app.use(cors());
+
 app.use(express.json());
 
 // =========================
@@ -219,10 +219,24 @@ const server = http.createServer(app);
 // SOCKET.IO
 // =========================
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://frontend-production-3a446.up.railway.app",
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
+
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
