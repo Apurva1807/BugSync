@@ -12,9 +12,21 @@ const solutionRoutes = require("./routes/solutionRoutes");
 const app = express();
 
 // =========================
-// MIDDLEWARE
+// CORS CONFIGURATION
 // =========================
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://frontend-production-3a446.up.railway.app",
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
@@ -72,7 +84,6 @@ app.post("/api/run", async (req, res) => {
     });
   }
 
-  // Simple limits for demo safety
   if (source_code.length > 20000) {
     return res.status(400).json({
       message: "Code is too large to execute.",
@@ -86,7 +97,6 @@ app.post("/api/run", async (req, res) => {
   }
 
   try {
-    // Create Judge0 submission
     const submissionResponse = await fetch(
       `${JUDGE0_URL}/submissions/?base64_encoded=false&wait=false`,
       {
@@ -97,9 +107,9 @@ app.post("/api/run", async (req, res) => {
         },
 
         body: JSON.stringify({
-          source_code: source_code,
+          source_code,
           language_id: languageId,
-          stdin: stdin,
+          stdin,
         }),
       }
     );
@@ -108,7 +118,10 @@ app.post("/api/run", async (req, res) => {
       await submissionResponse.json();
 
     if (!submissionResponse.ok) {
-      console.log("Judge0 submission error:", submissionData);
+      console.log(
+        "Judge0 submission error:",
+        submissionData
+      );
 
       return res.status(500).json({
         message:
@@ -117,23 +130,29 @@ app.post("/api/run", async (req, res) => {
       });
     }
 
-    const token = submissionData.token;
+    const token =
+      submissionData.token;
 
     if (!token) {
       return res.status(500).json({
-        message: "Execution token was not received.",
+        message:
+          "Execution token was not received.",
       });
     }
 
     let result = null;
 
-    // Poll Judge0 until execution completes
-    for (let attempt = 0; attempt < 20; attempt++) {
+    for (
+      let attempt = 0;
+      attempt < 20;
+      attempt++
+    ) {
       await sleep(500);
 
-      const resultResponse = await fetch(
-        `${JUDGE0_URL}/submissions/${token}?base64_encoded=false&fields=stdout,stderr,compile_output,message,status,time,memory`
-      );
+      const resultResponse =
+        await fetch(
+          `${JUDGE0_URL}/submissions/${token}?base64_encoded=false&fields=stdout,stderr,compile_output,message,status,time,memory`
+        );
 
       const resultData =
         await resultResponse.json();
@@ -155,8 +174,6 @@ app.post("/api/run", async (req, res) => {
       const statusId =
         result?.status?.id;
 
-      // 1 = In Queue
-      // 2 = Processing
       if (
         statusId !== 1 &&
         statusId !== 2
@@ -177,11 +194,17 @@ app.post("/api/run", async (req, res) => {
     }
 
     return res.json({
-      stdout: result.stdout,
-      stderr: result.stderr,
+      stdout:
+        result.stdout,
+
+      stderr:
+        result.stderr,
+
       compile_output:
         result.compile_output,
-      message: result.message,
+
+      message:
+        result.message,
 
       status:
         result.status?.description ||
@@ -213,24 +236,12 @@ app.post("/api/run", async (req, res) => {
 // HTTP SERVER
 // =========================
 
-const server = http.createServer(app);
+const server =
+  http.createServer(app);
 
 // =========================
 // SOCKET.IO
 // =========================
-
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://frontend-production-3a446.up.railway.app",
-];
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
 
 const io = new Server(server, {
   cors: {
@@ -246,265 +257,69 @@ const roomUsers = {};
 // Latest collaborative state
 const roomStates = {};
 
-io.on("connection", (socket) => {
-  console.log(
-    "User connected:",
-    socket.id
-  );
+io.on(
+  "connection",
+  (socket) => {
+    console.log(
+      "User connected:",
+      socket.id
+    );
 
-  // =========================
-  // JOIN ROOM
-  // =========================
+    // =========================
+    // JOIN ROOM
+    // =========================
 
-  socket.on(
-    "join-room",
-    ({ roomId, user }) => {
-      if (!roomId) {
-        return;
-      }
+    socket.on(
+      "join-room",
+      ({ roomId, user }) => {
+        if (!roomId) {
+          return;
+        }
 
-      socket.join(roomId);
+        socket.join(roomId);
 
-      socket.roomId =
-        roomId;
+        socket.roomId =
+          roomId;
 
-      if (!roomUsers[roomId]) {
-        roomUsers[roomId] = [];
-      }
+        if (!roomUsers[roomId]) {
+          roomUsers[roomId] = [];
+        }
 
-      if (!roomStates[roomId]) {
-        roomStates[roomId] = {};
-      }
+        if (!roomStates[roomId]) {
+          roomStates[roomId] = {};
+        }
 
-      const alreadyExists =
-        roomUsers[roomId].some(
-          (connectedUser) =>
-            connectedUser.socketId ===
-            socket.id
-        );
-
-      if (!alreadyExists) {
-        roomUsers[roomId].push({
-          socketId:
-            socket.id,
-
-          id:
-            user?.id || null,
-
-          name:
-            user?.name ||
-            "Developer",
-        });
-      }
-
-      console.log(
-        `User ${socket.id} joined room ${roomId}`
-      );
-
-      // Send connected users
-      io.to(roomId).emit(
-        "room-users",
-        roomUsers[roomId]
-      );
-
-      // Send latest room state
-      if (
-        Object.keys(
-          roomStates[roomId]
-        ).length > 0
-      ) {
-        socket.emit(
-          "room-state",
-          roomStates[roomId]
-        );
-      }
-
-      // Tell others
-      socket
-        .to(roomId)
-        .emit(
-          "user-joined",
-          user?.name ||
-            "Developer"
-        );
-    }
-  );
-
-  // =========================
-  // CODE SYNC
-  // =========================
-
-  socket.on(
-    "code-change",
-    ({ roomId, code }) => {
-      if (!roomStates[roomId]) {
-        roomStates[roomId] = {};
-      }
-
-      roomStates[roomId].code =
-        code;
-
-      socket
-        .to(roomId)
-        .emit(
-          "code-update",
-          code
-        );
-    }
-  );
-
-  // =========================
-  // LANGUAGE SYNC
-  // =========================
-
-  socket.on(
-    "language-change",
-    ({
-      roomId,
-      language,
-    }) => {
-      if (!roomStates[roomId]) {
-        roomStates[roomId] = {};
-      }
-
-      roomStates[
-        roomId
-      ].language =
-        language;
-
-      socket
-        .to(roomId)
-        .emit(
-          "language-update",
-          language
-        );
-    }
-  );
-
-  // =========================
-  // LIVE CHAT
-  // =========================
-
-  socket.on(
-    "chat-message",
-    ({
-      roomId,
-      message,
-      user,
-    }) => {
-      if (
-        !message ||
-        !message.trim()
-      ) {
-        return;
-      }
-
-      const chatData = {
-        id:
-          Date.now().toString() +
-          Math.random().toString(),
-
-        socketId:
-          socket.id,
-
-        userId:
-          user?.id || null,
-
-        name:
-          user?.name ||
-          "Developer",
-
-        message:
-          message.trim(),
-
-        time:
-          new Date().toLocaleTimeString(
-            [],
-            {
-              hour:
-                "2-digit",
-
-              minute:
-                "2-digit",
-            }
-          ),
-      };
-
-      io.to(roomId).emit(
-        "receive-message",
-        chatData
-      );
-    }
-  );
-
-  // =========================
-  // SHARED EXECUTION RESULT
-  // =========================
-
-  socket.on(
-    "run-result",
-    ({
-      roomId,
-      result,
-      code,
-      language,
-    }) => {
-      if (!roomStates[roomId]) {
-        roomStates[roomId] = {};
-      }
-
-      roomStates[roomId].code =
-        code;
-
-      roomStates[
-        roomId
-      ].language =
-        language;
-
-      roomStates[
-        roomId
-      ].executionResult =
-        result;
-
-      // Send result to other developers
-      socket
-        .to(roomId)
-        .emit(
-          "output-update",
-          result
-        );
-    }
-  );
-
-  // =========================
-  // DISCONNECT
-  // =========================
-
-  socket.on(
-    "disconnect",
-    () => {
-      console.log(
-        "User disconnected:",
-        socket.id
-      );
-
-      const roomId =
-        socket.roomId;
-
-      if (
-        roomId &&
-        roomUsers[roomId]
-      ) {
-        roomUsers[roomId] =
+        const alreadyExists =
           roomUsers[
             roomId
-          ].filter(
+          ].some(
             (
               connectedUser
             ) =>
-              connectedUser.socketId !==
+              connectedUser.socketId ===
               socket.id
           );
+
+        if (!alreadyExists) {
+          roomUsers[
+            roomId
+          ].push({
+            socketId:
+              socket.id,
+
+            id:
+              user?.id ||
+              null,
+
+            name:
+              user?.name ||
+              "Developer",
+          });
+        }
+
+        console.log(
+          `User ${socket.id} joined room ${roomId}`
+        );
 
         io.to(roomId).emit(
           "room-users",
@@ -512,31 +327,277 @@ io.on("connection", (socket) => {
         );
 
         if (
-          roomUsers[roomId]
-            .length === 0
+          Object.keys(
+            roomStates[
+              roomId
+            ]
+          ).length > 0
         ) {
-          delete roomUsers[
-            roomId
-          ];
+          socket.emit(
+            "room-state",
+            roomStates[
+              roomId
+            ]
+          );
+        }
 
-          delete roomStates[
+        socket
+          .to(roomId)
+          .emit(
+            "user-joined",
+            user?.name ||
+              "Developer"
+          );
+      }
+    );
+
+    // =========================
+    // CODE SYNC
+    // =========================
+
+    socket.on(
+      "code-change",
+      ({
+        roomId,
+        code,
+      }) => {
+        if (
+          !roomStates[
             roomId
-          ];
+          ]
+        ) {
+          roomStates[
+            roomId
+          ] = {};
+        }
+
+        roomStates[
+          roomId
+        ].code =
+          code;
+
+        socket
+          .to(roomId)
+          .emit(
+            "code-update",
+            code
+          );
+      }
+    );
+
+    // =========================
+    // LANGUAGE SYNC
+    // =========================
+
+    socket.on(
+      "language-change",
+      ({
+        roomId,
+        language,
+      }) => {
+        if (
+          !roomStates[
+            roomId
+          ]
+        ) {
+          roomStates[
+            roomId
+          ] = {};
+        }
+
+        roomStates[
+          roomId
+        ].language =
+          language;
+
+        socket
+          .to(roomId)
+          .emit(
+            "language-update",
+            language
+          );
+      }
+    );
+
+    // =========================
+    // LIVE CHAT
+    // =========================
+
+    socket.on(
+      "chat-message",
+      ({
+        roomId,
+        message,
+        user,
+      }) => {
+        if (
+          !message ||
+          !message.trim()
+        ) {
+          return;
+        }
+
+        const chatData = {
+          id:
+            Date.now().toString() +
+            Math.random().toString(),
+
+          socketId:
+            socket.id,
+
+          userId:
+            user?.id ||
+            null,
+
+          name:
+            user?.name ||
+            "Developer",
+
+          message:
+            message.trim(),
+
+          time:
+            new Date()
+              .toLocaleTimeString(
+                [],
+                {
+                  hour:
+                    "2-digit",
+
+                  minute:
+                    "2-digit",
+                }
+              ),
+        };
+
+        io.to(roomId).emit(
+          "receive-message",
+          chatData
+        );
+      }
+    );
+
+    // =========================
+    // SHARED EXECUTION RESULT
+    // =========================
+
+    socket.on(
+      "run-result",
+      ({
+        roomId,
+        result,
+        code,
+        language,
+      }) => {
+        if (
+          !roomStates[
+            roomId
+          ]
+        ) {
+          roomStates[
+            roomId
+          ] = {};
+        }
+
+        roomStates[
+          roomId
+        ].code =
+          code;
+
+        roomStates[
+          roomId
+        ].language =
+          language;
+
+        roomStates[
+          roomId
+        ].executionResult =
+          result;
+
+        socket
+          .to(roomId)
+          .emit(
+            "output-update",
+            result
+          );
+      }
+    );
+
+    // =========================
+    // DISCONNECT
+    // =========================
+
+    socket.on(
+      "disconnect",
+      () => {
+        console.log(
+          "User disconnected:",
+          socket.id
+        );
+
+        const roomId =
+          socket.roomId;
+
+        if (
+          roomId &&
+          roomUsers[
+            roomId
+          ]
+        ) {
+          roomUsers[
+            roomId
+          ] =
+            roomUsers[
+              roomId
+            ].filter(
+              (
+                connectedUser
+              ) =>
+                connectedUser.socketId !==
+                socket.id
+            );
+
+          io.to(
+            roomId
+          ).emit(
+            "room-users",
+            roomUsers[
+              roomId
+            ]
+          );
+
+          if (
+            roomUsers[
+              roomId
+            ].length === 0
+          ) {
+            delete roomUsers[
+              roomId
+            ];
+
+            delete roomStates[
+              roomId
+            ];
+          }
         }
       }
-    }
-  );
-});
+    );
+  }
+);
 
 // =========================
 // START SERVER
 // =========================
 
 const PORT =
-  process.env.PORT || 5000;
+  process.env.PORT ||
+  5000;
 
-server.listen(PORT, () => {
-  console.log(
-    `Server running on port ${PORT}`
-  );
-});
+server.listen(
+  PORT,
+  () => {
+    console.log(
+      `Server running on port ${PORT}`
+    );
+  }
+);
