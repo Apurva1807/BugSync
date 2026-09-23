@@ -2,6 +2,10 @@
 
 BugSync is a real-time collaborative debugging platform that helps developers report bugs, collaborate in live debugging rooms, execute code, discuss fixes, submit solutions, and mark accepted solutions as resolved.
 
+## Live Demo
+
+[Open BugSync](https://frontend-production-3a446.up.railway.app)
+
 ## Features
 
 - User Registration and Login
